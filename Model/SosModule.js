@@ -41,7 +41,8 @@ const sosSchema = new mongoose.Schema(
       default: ''
     },
     statusHistory: [statusHistorySchema],
-    resolvedAt: { type: Date, default: null }
+    resolvedAt: { type: Date, default: null },
+    
   },
   { timestamps: true }
 );
