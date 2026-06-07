@@ -1,24 +1,66 @@
 import mongoose from "mongoose";
 
-const sosSchema= new mongoose.schema({
-  driverId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  providerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
-  location: {
-    type: { type: String, enum: ['Point'], default: 'Point' },  // GeoJSON type
-    coordinates: { type: [Number], required: true }  // [longitude, latitude]
+const statusHistorySchema = new mongoose.Schema(
+  {
+    status: { type: String, required: true },
+    changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    note: { type: String }
   },
-  status: { type: String, enum: ['pending', 'accepted', 'en_route', 'completed'], default: 'pending' },
-  aiAnalysis: {
-    voice_text: String,
-    image_url: String,
-    detected_issue: String,
-    severity: String,
-    safety_instructions: String,
-    recommended_service: String,
-    confidence_score: Number
-  }
-}, { timestamps: true });
+  { timestamps: true, _id: false }
+);
 
-sosSchema.index({location:"2dspher"})
+const sosSchema = new mongoose.Schema(
+  {
+    driverId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: [true, 'Driver ID is required']
+    },
+    providerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+    emergencyType: {
+      type: String,
+      enum: ['MEDICAL', 'POLICE', 'TOWING', 'GENERAL'],
+      required: [true, 'Emergency type is required']
+    },
+    status: {
+      type: String,
+      enum: ['PENDING', 'ACCEPTED', 'ARRIVED', 'COMPLETED', 'CANCELLED'],
+      default: 'PENDING'
+    },
+    location: {
+      type: { type: String, enum: ['Point'], default: 'Point' },
+      coordinates: { type: [Number], required: [true, 'Coordinates are required'] }
+    },
+    notes: {
+      type: String,
+      maxlength: [500, 'Notes cannot exceed 500 characters'],
+      default: ''
+    },
+    statusHistory: [statusHistorySchema],
+    resolvedAt: { type: Date, default: null }
+  },
+  { timestamps: true }
+);
+
+
+sosSchema.index({ location: '2dsphere' });
+sosSchema.index({ driverId: 1, status: 1 });
+sosSchema.index({ providerId: 1, status: 1 });
+sosSchema.index({ status: 1, createdAt: -1 });
+
+// Auto-set resolvedAt when status is terminal
+sosSchema.pre('save', function() {
+  if (
+    this.isModified('status') &&
+    ['COMPLETED', 'CANCELLED'].includes(this.status) &&
+    !this.resolvedAt
+  ) {
+    this.resolvedAt = new Date();
+  }
+  });
 
 export const SosRequest= mongoose.model("SOSRequest",sosSchema)

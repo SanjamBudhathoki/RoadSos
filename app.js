@@ -2,6 +2,8 @@ import express from "express";
 import cors from "cors";
 import userRouter from "./Routes/authRoutes.js";
 import { Server } from "socket.io";
+import http from "http";
+
 const app=express();
 //Cor//? Cors config fror sockect and express left
 app.use(cors());
@@ -9,6 +11,7 @@ app.use(express.json());
 
 //* Firstime using rateLimit() from express-rate-limit
 import rateLimit from "express-rate-limit";
+import sosRouter from "./Routes/sosRoutes.js";
 
 const globalLimiter = rateLimit({
   windowMs: 2 * 60 * 1000, // 2 minute 
@@ -31,6 +34,8 @@ app.use("/user",authLimiter,userRouter);
 
 
 //* import sosRouter
+app.use("/sos",sosRouter);
+
 
 //*Socket Io
 const server = http.createServer(app);
