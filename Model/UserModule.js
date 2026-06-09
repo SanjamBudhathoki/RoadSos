@@ -60,7 +60,8 @@ const userSchema = new mongoose.Schema({
   },
   isAvailable: {
      type: Boolean,
-      default: false }, // for providers
+      default: false 
+    }, // for providers
 
   currentLocation: {
     type: { 
@@ -77,6 +78,8 @@ const userSchema = new mongoose.Schema({
 
 
 //  creates a geospatial index on the currentLocation field, which is required to perform proximity and range queries (such as $nearSphere or $geoNear) on that field.
+// Geospatial index required for $near / $geoNear queries
+
 userSchema.index({currentLocation:"2dsphere"});
 
 export const User=mongoose.model("User",userSchema);

@@ -39,7 +39,8 @@ const sosSchema = new mongoose.Schema(
       type: String,
       maxlength: [500, 'Notes cannot exceed 500 characters'],
       default: ''
-    },    // ── AI-enriched fields ──────────────────────────────────────────────────
+    },    
+    // ── AI-enriched fields ──────────────────────────────────────────────────
     severity: {
       type: String,
       enum: ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
@@ -80,7 +81,7 @@ sosSchema.index({ providerId: 1, status: 1 });
 sosSchema.index({ status: 1, createdAt: -1 });
 
 // Auto-set resolvedAt when status is terminal
-sosSchema.pre('save', function() {
+sosSchema.pre('save', function(next) {
   if (
     this.isModified('status') &&
     ['COMPLETED', 'CANCELLED'].includes(this.status) &&
@@ -88,6 +89,7 @@ sosSchema.pre('save', function() {
   ) {
     this.resolvedAt = new Date();
   }
+  next();
   });
 
 export const SosRequest= mongoose.model("SOSRequest",sosSchema)

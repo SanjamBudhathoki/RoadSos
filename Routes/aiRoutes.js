@@ -9,12 +9,12 @@ import { isUser } from "../Middleware/authMiddleWare.js";
 const router = express.Router();
 
 router.post(
-  "/analyze-emergency",//isUser,
+  "/analyze-emergency",isUser,
   analyzeEmergency
 );
 
 router.post(
-  "/voice-sos",
+  "/voice-sos",isUser,
   voiceSOS
 );
 

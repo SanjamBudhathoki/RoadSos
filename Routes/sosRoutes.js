@@ -6,6 +6,10 @@ import { acceptSos, createSos, deleteSos, findNearbySos, getMySos, getSingleSos,
 const sosRouter = express.Router();
 console.log("Sos Router Initialized")
 
+
+// Find Nearby SOS Requests
+sosRouter.get("/provider/nearby", isUser, findNearbySos);
+
 // Create sos request
 sosRouter.post("/create", isUser, createSos);
 
@@ -25,9 +29,6 @@ sosRouter.put("/:id/accept", isUser,acceptSos);
 // Update SOS Status
 sosRouter.put("/:id/status", isUser, updateSosStatus);
 
-
-// Find Nearby SOS Requests
-sosRouter.get("/provider/nearby", isUser, findNearbySos);
 
 
 // Delete SOS

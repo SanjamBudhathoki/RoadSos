@@ -163,6 +163,10 @@ export const acceptSos=async (req, res) => {
     });
 
     await sos.save();
+        // Notify the driver's room
+    const io = req.app.get("io");
+    io.to(`driver:${sos.driverId}`).emit("sos:accepted", 
+      { sosId: sos._id, providerId: sos.providerId });
 
     return res.status(200).json({
       success: true,
@@ -171,6 +175,7 @@ export const acceptSos=async (req, res) => {
     });
 
   } catch (error) {
+    logger.error("acceptSos error", { error: error.message });
 
     return res.status(500).json({
       success: false,
@@ -225,10 +230,13 @@ export const updateSosStatus=async (req, res) => {
     sos.statusHistory.push({
       status: input.status,
       changedBy: req.loggedInUser._id,
-      notes: input.notes
+      notes: input.notes || ""
     });
 
     await sos.save();
+
+        const io = req.app.get("io");
+    io.emit("sos:statusUpdated", { sosId: sos._id, status: sos.status });
 
     return res.status(200).json({
       success: true,
@@ -237,6 +245,8 @@ export const updateSosStatus=async (req, res) => {
     });
 
   } catch (error) {
+    logger.error("updateSosStatus error", { error: error.message });
+
     return res.status(500).json({
       success: false,
       message: "Failed to update status"
@@ -251,12 +261,16 @@ export const findNearbySos=async  (req, res) => {
 
     const { longitude, latitude } = req.query;
 
-    if (!longitude || !latitude) {
-      return res.status(400).json({
-        success: false,
-        message: "Latitude and longitude required"
-      });
-    }
+    const nearbyQuerySchema = Joi.object({
+  longitude: Joi.number().required(),
+  latitude: Joi.number().required(),
+  maxDistance: Joi.number().positive().default(10000),
+});
+  try {
+    await nearbyQuerySchema.validateAsync(req.query);
+  } catch (error) {
+      return res.status(400).json({ success: false, message: error.details[0].message }); 
+  }
 
     const requests = await SosRequest.find({
       status: "PENDING",
@@ -269,10 +283,11 @@ export const findNearbySos=async  (req, res) => {
               Number(latitude)
             ]
           },
-          $maxDistance: 10000
+          $maxDistance: 10000 // 1KM
         }
       }
-    });
+    }).populate("driverId", "firstName lastName phone");
+
 
     return res.status(200).json({
       success: true,
@@ -281,6 +296,7 @@ export const findNearbySos=async  (req, res) => {
     });
 
   } catch (error) {
+    logger.error("findNearbySos error", { error: error.message });
 
     return res.status(500).json({
       success: false,
@@ -306,8 +322,12 @@ export const deleteSos=async (req, res) => {
     if (!sos.driverId.equals(req.loggedInUser._id)) {
       return res.status(403).json({
         success: false,
-        message: "Unauthorized"
+        message: "Unauthorized To Cancle This SOS Request"
       });
+    }
+    
+    if (["COMPLETED", "CANCELLED"].includes(sos.status)) {
+      return res.status(409).json({ success: false, message: "SOS is already in a terminal state." });
     }
 
     sos.status = "CANCELLED";
@@ -326,6 +346,7 @@ export const deleteSos=async (req, res) => {
     });
 
   } catch (error) {
+    logger.error("deleteSos error", { error: error.message });
 
     return res.status(500).json({
       success: false,
@@ -334,26 +355,17 @@ export const deleteSos=async (req, res) => {
   }
 };
 
-//*
+//* Find nearest provider
 
-export const findNearestProviders = async (
-  coordinates,
-  maxDistance = 10000
-) => {
-
-  const providers = await User.find({
+export const findNearestProviders = async (coordinates, maxDistance = 10000) => {
+  return User.find({
     role: "provider",
-    availability: true,
-    location: {
+    isAvailable: true,
+    currentLocation: {
       $near: {
-        $geometry: {
-          type: "Point",
-          coordinates
-        },
-        $maxDistance: maxDistance
-      }
-    }
+        $geometry: { type: "Point", coordinates },
+        $maxDistance: maxDistance,
+      },
+    },
   });
-
-  return providers;
 };
