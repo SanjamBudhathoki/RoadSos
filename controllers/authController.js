@@ -3,7 +3,7 @@ import { User } from "../Model/userModule.js";
 import bcrypt from "bcrypt";
 import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
-
+import {logger} from "../utils/logger.js"
 
 //* Register User
 export const registerService=async (req, res) => {
@@ -143,7 +143,7 @@ export const editUserServices=async (req, res) => {
 let hashedPassword;
 if (updatedValues.password) {
   hashedPassword = await bcrypt.hash(updatedValues.password, 10);
-  console.log(hashedPassword)
+  // console.log(hashedPassword)
 }
   //   update user data
   await User.updateOne(
@@ -175,10 +175,12 @@ export const getUserProfile=async (req, res) => {
   try{
   // extract logged in user id from req.loggedInUser._id
   const userId = req.loggedInUser._id;
+  // console.log(userId)
   const user = await User.findOne({ _id: userId });
   if(!user){
     throw new Error("User not found");
   }
+
    return res.status(200).json({
       _id: user._id,
       firstName: user.firstName,
@@ -241,7 +243,7 @@ export const updateProviderAvailability = async (req, res) => {
 
     // Update coordinates if provided
     if (values.coordinates) {
-      user.currentLocation = { type: "Point", coordinates: value.coordinates };
+      user.currentLocation = { type: "Point", coordinates: values.coordinates };
     }
 
     await user.save();

@@ -81,7 +81,7 @@ sosSchema.index({ providerId: 1, status: 1 });
 sosSchema.index({ status: 1, createdAt: -1 });
 
 // Auto-set resolvedAt when status is terminal
-sosSchema.pre('save', function(next) {
+sosSchema.pre('save', function() {
   if (
     this.isModified('status') &&
     ['COMPLETED', 'CANCELLED'].includes(this.status) &&
@@ -89,7 +89,7 @@ sosSchema.pre('save', function(next) {
   ) {
     this.resolvedAt = new Date();
   }
-  next();
+  
   });
 
 export const SosRequest= mongoose.model("SOSRequest",sosSchema)

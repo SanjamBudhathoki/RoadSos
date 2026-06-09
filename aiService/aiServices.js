@@ -9,24 +9,27 @@ export const analyzeEmergencySeverity = async ({
   emergencyType,
   description,
 }) => {
-
   const prompt = `
-You are an emergency severity analyzer.
+You are a strict JSON generator.
+
+RULES:
+- Output MUST be valid JSON only
+- No markdown
+- No explanation
+
+Schema:
+{
+  "severity":"LOW|MEDIUM|HIGH|CRITICAL",
+  "priorityScore":number,
+  "recommendedServices":string[],
+  "reason":string
+}
 
 Emergency Type:
 ${emergencyType}
 
 Description:
 ${description}
-
-Return ONLY JSON:
-
-{
-  "severity":"LOW|MEDIUM|HIGH|CRITICAL",
-  "priorityScore":0,
-  "recommendedServices":[],
-  "reason":""
-}
 `;
 
   const response = await ai.models.generateContent({
@@ -36,13 +39,23 @@ Return ONLY JSON:
 
   const text = response.text;
 
-  return JSON.parse(text);
+  const cleaned = text
+    .replace(/```json/g, "")
+    .replace(/```/g, "")
+    .trim();
+
+  const data = JSON.parse(cleaned);
+
+  const allowed = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
+
+  if (!allowed.includes(data.severity)) {
+    throw new Error("AI returned invalid severity");
+  }
+
+  return data;
 };
 
-
-
 export const processVoiceSOS = async (transcript) => {
-
   const prompt = `
 Extract emergency details.
 
@@ -67,5 +80,10 @@ Return ONLY JSON:
 
   const text = response.text;
 
-  return JSON.parse(text);
+  const cleaned = text
+    .replace(/```json/g, "")
+    .replace(/```/g, "")
+    .trim();
+
+  return JSON.parse(cleaned);
 };
