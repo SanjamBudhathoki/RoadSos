@@ -58,8 +58,10 @@ export const registerService=async (req, res) => {
 
 //*Login User
 export const loginUserServices=async (req, res) => {
+  try {
       //   extract login credentials from req.body
-  const loginCredentials = req.body;
+ 
+    const loginCredentials = req.body;
   console.log(loginCredentials);
   //   validate login credentials
   const schemaLog =  Joi.object({
@@ -94,6 +96,7 @@ export const loginUserServices=async (req, res) => {
   const token = jwt.sign(
     { email: user.email },
     process.env.JWT_ACCESS_TOKEN_SECRET_KEY,
+    {expiresIn:"1d"}
   )
 
   console.log(token);
@@ -101,13 +104,17 @@ export const loginUserServices=async (req, res) => {
   user.password = undefined;
   // send appropriate response
   return res.status(200).send({ user, token });
-
+  } catch (error) {
+  logger.error("loginUserServices error", { error: error.message });
+    return res.status(500).json({ message: "Internal Server Error" });
+}
 
 }
 
 //* Edit User
 export const editUserServices=async (req, res) => {
-  // extract new values from req.body
+  try {
+    // extract new values from req.body
   const updatedValues = req.body;
 
   const schema = Joi.object({
@@ -136,6 +143,7 @@ export const editUserServices=async (req, res) => {
 let hashedPassword;
 if (updatedValues.password) {
   hashedPassword = await bcrypt.hash(updatedValues.password, 10);
+  console.log(hashedPassword)
 }
   //   update user data
   await User.updateOne(
@@ -155,10 +163,16 @@ if (updatedValues.password) {
 
   // return res
   return res.status(200).send({ message: "Profile is updated successfully." });
+  } catch (error) {
+        logger.error("editUserServices error", { error: error.message });
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+  
 }
 
 //* Get user Profile
 export const getUserProfile=async (req, res) => {
+  try{
   // extract logged in user id from req.loggedInUser._id
   const userId = req.loggedInUser._id;
   const user = await User.findOne({ _id: userId });
@@ -166,19 +180,27 @@ export const getUserProfile=async (req, res) => {
     throw new Error("User not found");
   }
    return res.status(200).json({
-      _id: user.id,
-      name: user.name,
+      _id: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
       email: user.email,
       role: user.role,
       phone: user.phone,
+      address: user.address,
+      gender: user.gender,
       isAvailable: user.isAvailable,
-      location: user.location,
-      lastSeen: user.lastSeen
+      currentLocation: user.currentLocation,
     });
+  }catch(error){
+    logger.error("getUserProfile error", { error: error.message });
+    return res.status(500).json({ message: "Internal Server Error" });
+
+  }
 }
 
 //*Update Provider Availability
 export const updateProviderAvailability = async (req, res) => {
+
   const values = req.body;
 
   const schema = Joi.object({
@@ -219,7 +241,7 @@ export const updateProviderAvailability = async (req, res) => {
 
     // Update coordinates if provided
     if (values.coordinates) {
-      user.coordinates = values.coordinates;
+      user.currentLocation = { type: "Point", coordinates: value.coordinates };
     }
 
     await user.save();
@@ -244,7 +266,7 @@ export const updateProviderAvailability = async (req, res) => {
 
   } catch (error) {
     console.error("Update Availability Error:", error);
-
+    logger.error("updateProviderAvailability error", { error: error.message });
     return res.status(500).json({
       message: "Internal server error"
     });
@@ -273,6 +295,8 @@ export const deleteUserServices=async (req, res) => {
 
   } catch (err) {
     return res.status(500).send({ message: err.message });
+    logger.error("deleteUserServices error", { error: error.message });
+
   }
 
 }

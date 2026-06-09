@@ -39,7 +39,33 @@ const sosSchema = new mongoose.Schema(
       type: String,
       maxlength: [500, 'Notes cannot exceed 500 characters'],
       default: ''
+    },    // ── AI-enriched fields ──────────────────────────────────────────────────
+    severity: {
+      type: String,
+      enum: ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+      default: null,
     },
+    priorityScore: {
+      type: Number,
+      min: 1,
+      max: 100,
+      default: null,
+    },
+    recommendedServices: {
+      type: [String],
+      default: [],
+    },
+    aiAnalysis: {
+      voice_text: { type: String, default: null },
+      image_url: { type: String, default: null },
+      detected_issue: { type: String, default: null },
+      severity: { type: String, default: null },
+      safety_instructions: { type: String, default: null },
+      recommended_service: { type: String, default: null },
+      confidence_score: { type: Number, default: null },
+    },
+    // ────────────────────────────────────────────────────────────────────────
+
     statusHistory: [statusHistorySchema],
     resolvedAt: { type: Date, default: null },
     

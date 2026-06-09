@@ -4,7 +4,7 @@ import { SosRequest } from "../Model/sosModule.js";
 import { logger } from "../utils/logger.js";
 import { User } from "../Model/userModule.js";
 
-// Create sos request
+//* Create sos request
 export const createSos= async (req, res) => {
   
   const input =req.body;
@@ -36,7 +36,7 @@ export const createSos= async (req, res) => {
     const sos = await SosRequest.create({
       driverId: req.loggedInUser._id,
       emergencyType:input.emergencyType,
-      notes:input.notes,
+      notes:input.notes || " ",
       location: {
         type: "Point",
         coordinates:input.coordinates
@@ -50,6 +50,10 @@ export const createSos= async (req, res) => {
       ]
     });
 
+    // Notify all connected clients of the new SOS
+    const io = req.app.get("io");
+    io.emit("sos:new", sos);
+
     return res.status(201).json({
       success: true,
       message: "SOS request created successfully",
@@ -58,7 +62,7 @@ export const createSos= async (req, res) => {
 
   } catch (error) {
     console.error(error);
-
+    logger.error("createSos error", { error: error.message });
     return res.status(500).json({
       success: false,
       message: "Failed to create SOS request"
@@ -66,7 +70,7 @@ export const createSos= async (req, res) => {
   }
 };
 
-// get my request 
+//* get my request 
 export const getMySos=async (req, res) => {
   try {
     const requests = await SosRequest.find({
@@ -82,6 +86,7 @@ export const getMySos=async (req, res) => {
     });
 
   } catch (error) {
+    logger.error("getMySos error", { error: error.message });
     return res.status(500).json({
       success: false,
       message: "Failed to fetch SOS requests",
@@ -90,7 +95,7 @@ export const getMySos=async (req, res) => {
 };
 
 
-// Get Single SOS
+//* Get Single SOS
 export const getSingleSos=async (req, res) => {
   try {
 
@@ -118,6 +123,7 @@ export const getSingleSos=async (req, res) => {
     });
 
   } catch (error) {
+    logger.error("getSingleSos error", { error: error.message });
 
     return res.status(500).json({
       success: false,
@@ -127,7 +133,7 @@ export const getSingleSos=async (req, res) => {
 };
 
 
-// Accept SOS (Provider)
+//* Accept SOS (Provider)
 export const acceptSos=async (req, res) => {
   try {
 
@@ -174,7 +180,7 @@ export const acceptSos=async (req, res) => {
 };
 
 
-// Update SOS Status
+//* Update SOS Status
 export const updateSosStatus=async (req, res) => {
   try {
     const input = req.body;
@@ -239,7 +245,7 @@ export const updateSosStatus=async (req, res) => {
 };
 
 
-// Find Nearby SOS Requests
+//* Find Nearby SOS Requests
 export const findNearbySos=async  (req, res) => {
   try {
 
@@ -284,7 +290,7 @@ export const findNearbySos=async  (req, res) => {
 };
 
 
-// Delete SOS
+//* Delete SOS
 export const deleteSos=async (req, res) => {
   try {
 
@@ -326,4 +332,28 @@ export const deleteSos=async (req, res) => {
       message: "Failed to cancel SOS"
     });
   }
+};
+
+//*
+
+export const findNearestProviders = async (
+  coordinates,
+  maxDistance = 10000
+) => {
+
+  const providers = await User.find({
+    role: "provider",
+    availability: true,
+    location: {
+      $near: {
+        $geometry: {
+          type: "Point",
+          coordinates
+        },
+        $maxDistance: maxDistance
+      }
+    }
+  });
+
+  return providers;
 };

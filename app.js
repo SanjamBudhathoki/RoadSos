@@ -12,6 +12,7 @@ app.use(express.json());
 //* Firstime using rateLimit() from express-rate-limit
 import rateLimit from "express-rate-limit";
 import sosRouter from "./Routes/sosRoutes.js";
+import aiRouter from "./Routes/aiRoutes.js";
 
 const globalLimiter = rateLimit({
   windowMs: 2 * 60 * 1000, // 2 minute 
@@ -35,6 +36,10 @@ app.use("/user",authLimiter,userRouter);
 
 //* import sosRouter
 app.use("/sos",sosRouter);
+
+//! import ai
+app.use("/ai", aiRouter);
+
 
 
 //*Socket Io
