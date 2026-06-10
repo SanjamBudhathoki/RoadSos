@@ -3,10 +3,22 @@ import mongoose from "mongoose";
 import { SosRequest } from "../Model/sosModule.js";
 import { logger } from "../utils/logger.js";
 import { User } from "../Model/userModule.js";
-
+import { analyzeEmergencySeverity } from "../aiService/aiServices.js";
 //* Create sos request
 export const createSos= async (req, res) => {
-  
+  let aiResult = null;
+
+try {
+  aiResult = await analyzeEmergencySeverity({
+    emergencyType: input.emergencyType,
+    description: input.notes || ""
+  });
+} catch (error) {
+  logger.error("AI Analysis Failed", {
+    error: error.message
+  });
+}
+
   const input =req.body;
   
   const createSOSSchema=Joi.object({
@@ -23,32 +35,67 @@ export const createSos= async (req, res) => {
 });
 
   try {
-    const { error } =await createSOSSchema.validateAsync(input);
+    const validate= await createSOSSchema.validateAsync(input);
 
-    if (error) {
+    if (validate.error) {
       return res.status(400).json({
         success: false,
         message: error.details[0].message
       });
     }
-
     
-    const sos = await SosRequest.create({
-      driverId: req.loggedInUser._id,
-      emergencyType:input.emergencyType,
-      notes:input.notes || " ",
-      location: {
-        type: "Point",
-        coordinates:input.coordinates
-      },
-      statusHistory: [
-        {
-          status: "PENDING",
-          changedBy: req.loggedInUser._id,
-          note: "SOS created"
-        }
-      ]
-    });
+    
+   const sos = await SosRequest.create({
+  driverId: req.loggedInUser._id,
+
+  emergencyType: input.emergencyType,
+
+  notes: input.notes || "",
+
+  location: {
+    type: "Point",
+    coordinates: input.coordinates
+  },
+
+  severity: aiResult?.severity || "MEDIUM",
+
+  priorityScore: aiResult?.priorityScore || 50,
+
+  recommendedServices:
+    aiResult?.recommendedServices || [],
+
+  aiAnalysis: {
+    detected_issue:
+      aiResult?.reason || "No analysis available",
+
+    severity:
+      aiResult?.severity || "MEDIUM",
+
+    recommended_service:
+      aiResult?.recommendedServices?.join(", ") || "",
+
+    confidence_score: 0.9
+  },
+
+  statusHistory: [
+    {
+      status: "PENDING",
+      changedBy: req.loggedInUser._id,
+      note: "SOS created"
+    }
+  ]
+});
+ await sos.save();
+
+ const providers =
+await findNearestProviders(
+  input.coordinates
+);
+
+providers.forEach(provider => {
+  io.to(`provider:${provider._id}`)
+    .emit("sos:new", sos);
+});
 
     // Notify all connected clients of the new SOS
     const io = req.app.get("io");
@@ -137,7 +184,21 @@ export const getSingleSos=async (req, res) => {
 export const acceptSos=async (req, res) => {
   try {
 
-    const sos = await SosRequest.findById(req.params.id);
+    const sos =
+await SosRequest.findOneAndUpdate(
+{
+  _id: req.params.id,
+  status: "PENDING"
+},
+{
+  providerId: req.loggedInUser._id,
+  status: "ACCEPTED",
+  acceptedAt: new Date()
+},
+{
+  new: true
+}
+);
 
     if (!sos) {
       return res.status(404).json({
@@ -163,6 +224,13 @@ export const acceptSos=async (req, res) => {
     });
 
     await sos.save();
+
+    await User.findByIdAndUpdate(
+  req.loggedInUser._id,
+  {
+    isAvailable: false
+  }
+);
         // Notify the driver's room
     const io = req.app.get("io");
     io.to(`driver:${sos.driverId}`).emit("sos:accepted", 
@@ -189,6 +257,7 @@ export const acceptSos=async (req, res) => {
 export const updateSosStatus=async (req, res) => {
   try {
     const input = req.body;
+    
 
     const schema = Joi.object({
       status: Joi.string()
@@ -196,12 +265,13 @@ export const updateSosStatus=async (req, res) => {
           "PENDING",
           "ACCEPTED",
           "ARRIVED",
-          "COMPLETED",
+          "ON_THE_WAY",
+          "RESOLVED",
           "CANCELLED"
         )
         .required(),
 
-      notes: Joi.string().allow("")
+      note: Joi.string().allow("")
     });
 
     // validation
@@ -212,7 +282,23 @@ export const updateSosStatus=async (req, res) => {
         success: false,
         message: error.details[0].message
       });
-    }
+    };
+
+    const allowedTransitions = {
+  PENDING: ["ACCEPTED","CANCELLED"],
+  ACCEPTED: ["ON_THE_WAY"],
+  ON_THE_WAY: ["ARRIVED"],
+  ARRIVED: ["RESOLVED"],
+  RESOLVED: ["CLOSED"]
+};
+if (
+  !allowed.includes(input.status)
+) {
+  return res.status(400).json({
+    success:false,
+    message:"Invalid status transition"
+  });
+}
 
     // find SOS
     const sos = await SosRequest.findById(req.params.id);
@@ -230,8 +316,32 @@ export const updateSosStatus=async (req, res) => {
     sos.statusHistory.push({
       status: input.status,
       changedBy: req.loggedInUser._id,
-      notes: input.notes || ""
+      note: input.note || ""
     });
+if(input.status==="ON_THE_WAY"){
+  sos.onTheWayAt = new Date();
+}
+
+if(input.status==="ARRIVED"){
+  sos.arrivedAt = new Date();
+}
+
+if(input.status==="RESOLVED"){
+  sos.resolvedAt = new Date();
+}
+
+if(input.status==="CLOSED"){
+  sos.closedAt = new Date();
+}
+
+if (input.status === "RESOLVED" || "CLOSED  "){
+  await User.findByIdAndUpdate(
+  sos.providerId,
+  {
+    isAvailable:true
+  }
+);
+}
 
     await sos.save();
 

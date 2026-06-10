@@ -55,6 +55,7 @@ ${description}
   return data;
 };
 
+
 export const processVoiceSOS = async (transcript) => {
   const prompt = `
 Extract emergency details.
@@ -87,3 +88,5 @@ Return ONLY JSON:
 
   return JSON.parse(cleaned);
 };
+
+

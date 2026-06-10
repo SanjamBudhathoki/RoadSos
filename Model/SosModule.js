@@ -28,7 +28,15 @@ const sosSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['PENDING', 'ACCEPTED', 'ARRIVED', 'COMPLETED', 'CANCELLED'],
+      enum: [
+  "PENDING",
+  "ACCEPTED",
+  "ON_THE_WAY",
+  "ARRIVED",
+  "RESOLVED",
+  "CLOSED",
+  "CANCELLED"
+],
       default: 'PENDING'
     },
     location: {
@@ -69,6 +77,51 @@ const sosSchema = new mongoose.Schema(
 
     statusHistory: [statusHistorySchema],
     resolvedAt: { type: Date, default: null },
+    // ────────────────────────────For RealTime tracking─────────────────────────────────────────
+    assignedProvider: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "User"
+},
+
+providerDistance: {
+  type: Number,
+  default: null
+},
+
+acceptedAt: Date,
+
+onTheWayAt: Date,
+
+arrivedAt: Date,
+
+resolvedAt: Date,
+
+closedAt: Date,
+
+assignedDistance: Number,
+
+estimatedArrivalTime: Number,
+
+responseTimeSeconds: Number,
+
+driverRating: {
+  type: Number,
+  min: 1,
+  max: 5
+},
+
+providerRating: {
+  type: Number,
+  min: 1,
+  max: 5
+},
+
+trackingActive: {
+  type: Boolean,
+  default: false
+}
+//===---------- auto accept sos request by provider
+
     
   },
   { timestamps: true }
