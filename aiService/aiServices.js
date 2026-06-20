@@ -89,4 +89,49 @@ Return ONLY JSON:
   return JSON.parse(cleaned);
 };
 
+export const analyzeImageEmergency = async (
+  file
+) => {
+  const imageBase64 =
+    await file.arrayBuffer();
+
+  const prompt = `
+Analyze this emergency image.
+
+Return ONLY JSON:
+
+{
+  "severity":"LOW|MEDIUM|HIGH|CRITICAL",
+  "priorityScore":number,
+  "recommendedServices":string[],
+  "reason":string
+}
+`;
+
+  const response =
+    await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [
+        {
+          text: prompt
+        },
+        {
+          inlineData: {
+            mimeType: file.mimetype,
+            data: Buffer.from(
+              imageBase64
+            ).toString("base64")
+          }
+        }
+      ]
+    });
+
+  const cleaned =
+    response.text
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
+      .trim();
+
+  return JSON.parse(cleaned);
+};
 

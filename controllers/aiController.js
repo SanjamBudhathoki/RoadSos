@@ -1,6 +1,7 @@
 import asyncHandler from "../utils/asyncHandler.js";
 import {
   analyzeEmergencySeverity,
+  analyzeImageEmergency,
   processVoiceSOS,
 } from "../aiService/aiServices.js";
 
@@ -47,3 +48,25 @@ export const voiceSOS = asyncHandler(async (req, res) => {
     data: result,
   });
 });
+
+export const analyzeImage = async (
+  req,
+  res
+) => {
+  try {
+    const result =
+      await analyzeImageEmergency(
+        req.file
+      );
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};

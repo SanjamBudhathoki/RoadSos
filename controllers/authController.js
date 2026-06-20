@@ -46,8 +46,10 @@ export const registerService=async (req, res) => {
    // create user
   await User.create(newUser);
    // send response
+  
   return res.status(201).send({ message: "User has been added to server" });
-
+  return res.status(201).send({user,token });
+ 
     } catch (error) {  
         return res.status(500).send({
     message: error.message,

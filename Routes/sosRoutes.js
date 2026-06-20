@@ -1,6 +1,6 @@
 import express from "express";
-import { isUser } from "../Middleware/authMiddleWare.js";
-import { acceptSos, createSos, deleteSos, findNearbySos, getMySos, getSingleSos, updateSosStatus } from "../controllers/sosController.js";
+import { isProvider, isUser } from "../Middleware/authMiddleWare.js";
+import { acceptSos, createSos, deleteSos, findNearbySos, getActiveMissions, getMySos, getSingleSos, updateSosStatus } from "../controllers/sosController.js";
 
 
 const sosRouter = express.Router();
@@ -33,6 +33,11 @@ sosRouter.put("/:id/status", isUser, updateSosStatus);
 
 // Delete SOS
 sosRouter.delete("/delete/:id", isUser,deleteSos);
+
+//! get active missions
+
+sosRouter.get("/provider/active",isProvider,getActiveMissions)
+
 
 
 

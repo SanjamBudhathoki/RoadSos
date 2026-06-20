@@ -6,20 +6,20 @@ import { User } from "../Model/userModule.js";
 import { analyzeEmergencySeverity } from "../aiService/aiServices.js";
 //* Create sos request
 export const createSos= async (req, res) => {
-  let aiResult = null;
+  const input = req.body;
+
+let aiResult = null;
 
 try {
-  aiResult = await analyzeEmergencySeverity({
-    emergencyType: input.emergencyType,
-    description: input.notes || ""
-  });
-} catch (error) {
-  logger.error("AI Analysis Failed", {
-    error: error.message
-  });
+ aiResult = await analyzeEmergencySeverity({
+   emergencyType: input.emergencyType,
+   description: input.notes || ""
+ });
+}
+catch(error){
+ console.error(error);
 }
 
-  const input =req.body;
   
   const createSOSSchema=Joi.object({
   emergencyType: Joi.string()
@@ -92,15 +92,16 @@ await findNearestProviders(
   input.coordinates
 );
 
-providers.forEach(provider => {
-  io.to(`provider:${provider._id}`)
-    .emit("sos:new", sos);
-});
+
 
     // Notify all connected clients of the new SOS
     const io = req.app.get("io");
     io.emit("sos:new", sos);
 
+providers.forEach(provider => {
+  io.to(`provider:${provider._id}`)
+    .emit("sos:new", sos);
+});
     return res.status(201).json({
       success: true,
       message: "SOS request created successfully",
@@ -123,7 +124,7 @@ export const getMySos=async (req, res) => {
     const requests = await SosRequest.find({
       driverId: req.loggedInUser._id,
     })
-      .populate("providerId", "fullName phone")
+      .populate("providerId", "firstName lastName phone")
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
@@ -207,12 +208,12 @@ await SosRequest.findOneAndUpdate(
       });
     }
 
-    if (sos.status !== "PENDING") {
-      return res.status(400).json({
-        success: false,
-        message: "SOS already assigned"
-      });
-    }
+    // if (sos.status !== "PENDING") {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: "SOS already assigned"
+    //   });
+    // }
 
     sos.providerId = req.loggedInUser._id;
     sos.status = "ACCEPTED";
@@ -254,10 +255,9 @@ await SosRequest.findOneAndUpdate(
 
 
 //* Update SOS Status
-export const updateSosStatus=async (req, res) => {
+export const updateSosStatus = async (req, res) => {
   try {
     const input = req.body;
-    
 
     const schema = Joi.object({
       status: Joi.string()
@@ -270,43 +270,36 @@ export const updateSosStatus=async (req, res) => {
           "CANCELLED"
         )
         .required(),
-
       note: Joi.string().allow("")
     });
 
-    // validation
-    try {
-      await schema.validateAsync(input);
-    } catch (error) {
-      return res.status(400).json({
-        success: false,
-        message: error.details[0].message
-      });
-    };
+    await schema.validateAsync(input);
 
-    const allowedTransitions = {
-  PENDING: ["ACCEPTED","CANCELLED"],
-  ACCEPTED: ["ON_THE_WAY"],
-  ON_THE_WAY: ["ARRIVED"],
-  ARRIVED: ["RESOLVED"],
-  RESOLVED: ["CLOSED"]
-};
-if (
-  !allowed.includes(input.status)
-) {
-  return res.status(400).json({
-    success:false,
-    message:"Invalid status transition"
-  });
-}
-
-    // find SOS
+    // ✅ 1. FIND SOS FIRST (IMPORTANT FIX)
     const sos = await SosRequest.findById(req.params.id);
 
     if (!sos) {
       return res.status(404).json({
         success: false,
         message: "SOS not found"
+      });
+    }
+
+    // ✅ 2. NOW safe to use sos.status
+    const allowedTransitions = {
+      PENDING: ["ACCEPTED", "CANCELLED"],
+      ACCEPTED: ["ON_THE_WAY"],
+      ON_THE_WAY: ["ARRIVED"],
+      ARRIVED: ["RESOLVED"],
+      RESOLVED: ["CLOSED"]
+    };
+
+    const allowed = allowedTransitions[sos.status] || [];
+
+    if (!allowed.includes(input.status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid status transition"
       });
     }
 
@@ -318,35 +311,25 @@ if (
       changedBy: req.loggedInUser._id,
       note: input.note || ""
     });
-if(input.status==="ON_THE_WAY"){
-  sos.onTheWayAt = new Date();
-}
 
-if(input.status==="ARRIVED"){
-  sos.arrivedAt = new Date();
-}
+    if (input.status === "ON_THE_WAY") sos.onTheWayAt = new Date();
+    if (input.status === "ARRIVED") sos.arrivedAt = new Date();
+    if (input.status === "RESOLVED") sos.resolvedAt = new Date();
+    if (input.status === "CLOSED") sos.closedAt = new Date();
 
-if(input.status==="RESOLVED"){
-  sos.resolvedAt = new Date();
-}
-
-if(input.status==="CLOSED"){
-  sos.closedAt = new Date();
-}
-
-if (input.status === "RESOLVED" || "CLOSED  "){
-  await User.findByIdAndUpdate(
-  sos.providerId,
-  {
-    isAvailable:true
-  }
-);
-}
+    if (input.status === "RESOLVED" || input.status === "CLOSED") {
+      await User.findByIdAndUpdate(sos.providerId, {
+        isAvailable: true
+      });
+    }
 
     await sos.save();
 
-        const io = req.app.get("io");
-    io.emit("sos:statusUpdated", { sosId: sos._id, status: sos.status });
+    const io = req.app.get("io");
+    io.emit("sos:statusUpdated", {
+      sosId: sos._id,
+      status: sos.status
+    });
 
     return res.status(200).json({
       success: true,
@@ -466,7 +449,6 @@ export const deleteSos=async (req, res) => {
 };
 
 //* Find nearest provider
-
 export const findNearestProviders = async (coordinates, maxDistance = 10000) => {
   return User.find({
     role: "provider",
@@ -479,3 +461,44 @@ export const findNearestProviders = async (coordinates, maxDistance = 10000) => 
     },
   });
 };
+
+//! get active mission
+
+export const getActiveMissions=async (req,res) => {
+  try {
+    const providerId=req.loggedInUser.id;
+    
+      const activeMission =
+      await SosRequest.findOne({
+        providerId,
+        status: {
+          $in: [
+            'ACCEPTED',
+            'IN_PROGRESS',
+          ],
+        },
+      })
+        .populate(
+          'driverId',
+          'name phone'
+        )
+        .sort({
+          updatedAt: -1,
+        });
+            return res.status(200).json({
+      success: true,
+      data: activeMission,
+    });
+
+
+  } catch (error) {
+        console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message:
+        'Failed to fetch active mission',
+    });
+    
+  }  
+}
