@@ -41,3 +41,27 @@ export function setupSocketHandlers(io) {
 
   logger.info("Socket handlers initialized");
 }
+
+socket.on(
+  "provider-location",
+  (data) => {
+
+    io.emit(
+      "provider-location-updated",
+      data
+    );
+
+  }
+);
+
+// In socketHandler.js
+socket.on("provider:location-update" || "provider-location", (data) => {
+  const { sosId, latitude, longitude } = data;
+  
+  // Broadcast to the user who created this SOS
+  io.emit("provider:location-updated", {
+    sosId,
+    latitude: Number(latitude),   // Ensure these are numbers
+    longitude: Number(longitude), // Not strings
+  });
+});

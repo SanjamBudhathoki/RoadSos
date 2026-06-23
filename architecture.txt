@@ -1,0 +1,30 @@
+RoadSos Final -SERVER
+│   aiService
+│   └── aiServices.js
+│   config
+│   └── dbConnect.js
+│   controllers
+│   ├── aiController.js
+│   ├── authController.js
+│   └── sosController.js
+│   Middleware
+│   └── authMiddleWare.js
+│   Model
+│   ├── sosModule.js
+│   └── userModule.js
+│   Routes
+│   ├── aiRoutes.js
+│   ├── authRoutes.js
+│   └── sosRoutes.js
+│   sockets
+│   └── socketHander.js
+│   utils
+│   ├── asyncHandler.js
+│   └── logger.js
+│   .env
+│   .gitignore
+│   app.js
+│   package-lock.json
+│   package.json
+│   README.md
+│   server.js
