@@ -101,15 +101,15 @@ io.on("connection", (socket) => {
 
 
 
-    console.log("✅ Location broadcasted");
+    console.log(" Location broadcasted");
   });
 
   // SOS status updates
   socket.on("sos:statusUpdated", (data) => {
-    console.log("📝 SOS status updated:", data);
+    console.log(" SOS status updated:", data);
     
     if (!data.sosId || !data.status) {
-      console.error("❌ Invalid status data:", data);
+      console.error("Invalid status data:", data);
       return;
     }
 
@@ -121,10 +121,10 @@ io.on("connection", (socket) => {
 
   // Provider arrived
   socket.on("provider-arrived", (data) => {
-    console.log("🚑 Provider arrived:", data);
+    console.log("Provider arrived:", data);
     
     if (!data.sosId) {
-      console.error("❌ Invalid arrival data:", data);
+      console.error("Invalid arrival data:", data);
       return;
     }
 
@@ -141,25 +141,25 @@ io.on("connection", (socket) => {
 
   // SOS accepted
   socket.on("sos:accepted", (data) => {
-    console.log("✅ SOS accepted:", data);
+    console.log(" SOS accepted:", data);
     socket.broadcast.emit("sos:accepted", data);
   });
 
   // SOS completed
   socket.on("sos:completed", (data) => {
-    console.log("🏁 SOS completed:", data);
+    console.log("SOS completed:", data);
     socket.broadcast.emit("sos:completed", data);
   });
 
   // Handle disconnection
   socket.on("disconnect", (reason) => {
-    console.log("❌ User disconnected:", socket.id, "Reason:", reason);
-    console.log("📊 Remaining clients:", io.engine.clientsCount - 1);
+    console.log(" User disconnected:", socket.id, "Reason:", reason);
+    console.log("Remaining clients:", io.engine.clientsCount - 1);
   });
 
   // Handle errors
   socket.on("error", (error) => {
-    console.error("⚠️ Socket error:", error);
+    console.error(" Socket error:", error);
   });
 });
 

@@ -4,21 +4,30 @@ import { SosRequest } from "../Model/sosModule.js";
 import { logger } from "../utils/logger.js";
 import { User } from "../Model/userModule.js";
 import { analyzeEmergencySeverity } from "../aiService/aiServices.js";
+
 //* Create sos request
 export const createSos= async (req, res) => {
   const input = req.body;
 
+// Extract image data from request
+  const { imageUrl, imagePublicId, aiAnalysisResult } = input;
+
 let aiResult = null;
 
 try {
- aiResult = await analyzeEmergencySeverity({
-   emergencyType: input.emergencyType,
-   description: input.notes || ""
- });
-}
-catch(error){
- console.error(error);
-}
+    // If AI analysis was already done on frontend, use it
+    if (aiAnalysisResult) {
+      aiResult = aiAnalysisResult;
+    } else {
+      // Otherwise analyze now
+      aiResult = await analyzeEmergencySeverity({
+        emergencyType: input.emergencyType,
+        description: input.notes || "",
+      });
+    }
+  } catch (error) {
+    console.error('AI analysis error:', error);
+  }
 
   
   const createSOSSchema=Joi.object({
@@ -31,7 +40,10 @@ catch(error){
     .length(2)
     .required(),
 
-  notes: Joi.string().max(500).allow("")
+  notes: Joi.string().max(500).allow(""),
+   imageUrl: Joi.string().uri().allow("", null),
+    imagePublicId: Joi.string().allow("", null),
+    aiAnalysisResult: Joi.object().allow(null),
 });
 
   try {
@@ -44,76 +56,60 @@ catch(error){
       });
     }
     
-    
-   const sos = await SosRequest.create({
-  driverId: req.loggedInUser._id,
+     const sos = await SosRequest.create({
+      driverId: req.loggedInUser._id,
+      emergencyType: input.emergencyType,
+      notes: input.notes || "",
+      location: {
+        type: "Point",
+        coordinates: input.coordinates,
+      },
+      severity: aiResult?.severity || "MEDIUM",
+      priorityScore: aiResult?.priorityScore || 50,
+      recommendedServices: aiResult?.recommendedServices || [],
+      aiAnalysis: {
+        voice_text: input.notes || null,
+        image_url: imageUrl || null,           //  Save image URL
+        image_public_id: imagePublicId || null, //  Save public ID
+        detected_issue: aiResult?.reason || "No analysis available",
+        severity: aiResult?.severity || "MEDIUM",
+        recommended_service: aiResult?.recommendedServices?.join(", ") || "",
+        confidence_score: aiResult?.confidence || 0.9,
+        safety_instructions: aiResult?.safetyInstructions || null,
+      },
+      statusHistory: [
+        {
+          status: "PENDING",
+          changedBy: req.loggedInUser._id,
+          note: "SOS created",
+        },
+      ],
+    });
 
-  emergencyType: input.emergencyType,
 
-  notes: input.notes || "",
-
-  location: {
-    type: "Point",
-    coordinates: input.coordinates
-  },
-
-  severity: aiResult?.severity || "MEDIUM",
-
-  priorityScore: aiResult?.priorityScore || 50,
-
-  recommendedServices:
-    aiResult?.recommendedServices || [],
-
-  aiAnalysis: {
-    detected_issue:
-      aiResult?.reason || "No analysis available",
-
-    severity:
-      aiResult?.severity || "MEDIUM",
-
-    recommended_service:
-      aiResult?.recommendedServices?.join(", ") || "",
-
-    confidence_score: 0.9
-  },
-
-  statusHistory: [
-    {
-      status: "PENDING",
-      changedBy: req.loggedInUser._id,
-      note: "SOS created"
-    }
-  ]
-});
  await sos.save();
 
- const providers =
-await findNearestProviders(
-  input.coordinates
-);
-
-
-
-    // Notify all connected clients of the new SOS
+// Notify providers
     const io = req.app.get("io");
     io.emit("sos:new", sos);
 
-providers.forEach(provider => {
-  io.to(`provider:${provider._id}`)
-    .emit("sos:new", sos);
-});
+    // Notify nearby providers
+    const providers = await findNearestProviders(input.coordinates);
+    providers.forEach((provider) => {
+      io.to(`provider:${provider._id}`).emit("sos:new", sos);
+    });
+
     return res.status(201).json({
       success: true,
       message: "SOS request created successfully",
-      data: sos
+      data: sos,
     });
-
   } catch (error) {
     console.error(error);
     logger.error("createSos error", { error: error.message });
     return res.status(500).json({
       success: false,
-      message: "Failed to create SOS request"
+      message: "Failed to create SOS request",
     });
   }
 };
@@ -275,7 +271,7 @@ export const updateSosStatus = async (req, res) => {
 
     await schema.validateAsync(input);
 
-    // ✅ 1. FIND SOS FIRST (IMPORTANT FIX)
+    // 1. FIND SOS FIRST (IMPORTANT FIX)
     const sos = await SosRequest.findById(req.params.id);
 
     if (!sos) {
@@ -285,7 +281,7 @@ export const updateSosStatus = async (req, res) => {
       });
     }
 
-    // ✅ 2. NOW safe to use sos.status
+    // 2. NOW safe to use sos.status
     const allowedTransitions = {
       PENDING: ["ACCEPTED", "CANCELLED"],
       ACCEPTED: ["ON_THE_WAY"],

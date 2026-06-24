@@ -64,15 +64,16 @@ const sosSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
-    aiAnalysis: {
-      voice_text: { type: String, default: null },
-      image_url: { type: String, default: null },
-      detected_issue: { type: String, default: null },
-      severity: { type: String, default: null },
-      safety_instructions: { type: String, default: null },
-      recommended_service: { type: String, default: null },
-      confidence_score: { type: Number, default: null },
-    },
+aiAnalysis: {
+  voice_text: { type: String, default: null },
+  image_url: { type: String, default: null },        // ✅ Already exists
+  image_public_id: { type: String, default: null },  // 🆕 For cloud storage
+  detected_issue: { type: String, default: null },
+  severity: { type: String, default: null },
+  safety_instructions: { type: String, default: null },
+  recommended_service: { type: String, default: null },
+  confidence_score: { type: Number, default: null },
+},
     // ────────────────────────────────────────────────────────────────────────
 
     statusHistory: [statusHistorySchema],
