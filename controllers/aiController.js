@@ -41,7 +41,7 @@ export const analyzeEmergency = asyncHandler(async (req, res) => {
 // POST /ai/voice-sos
 export const voiceSOS = asyncHandler(async (req, res) => {
   const { transcript } = req.body;
-
+  
   if (!transcript || typeof transcript !== "string"|| !transcript.trim()) {
     return res.status(400).json({
       success: false,

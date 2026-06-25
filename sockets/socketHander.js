@@ -34,15 +34,7 @@ export function setupSocketHandlers(io) {
       logger.info("Admin socket registered", { socketId: socket.id });
     });
 
-    socket.on("disconnect", () => {
-      logger.info("Socket disconnected", { socketId: socket.id });
-    });
-  });
-
-  logger.info("Socket handlers initialized");
-}
-
-socket.on(
+    socket.on(
   "provider-location",
   (data) => {
 
@@ -65,3 +57,12 @@ socket.on("provider:location-update" || "provider-location", (data) => {
     longitude: Number(longitude), // Not strings
   });
 });
+
+    socket.on("disconnect", () => {
+      logger.info("Socket disconnected", { socketId: socket.id });
+    });
+  });
+
+  logger.info("Socket handlers initialized");
+}
+

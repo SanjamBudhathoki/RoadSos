@@ -135,7 +135,7 @@ io.on("connection", (socket) => {
 
   // New SOS alert
   socket.on("sos:new", (data) => {
-    console.log("🆕 New SOS alert:", data?.sosId);
+    console.log(" New SOS alert:", data?.sosId);
     socket.broadcast.emit("sos:new", data);
   });
 
