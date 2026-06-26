@@ -1,10 +1,12 @@
 import { logger } from "../utils/logger.js";
 
+
+
 export function setupSocketHandlers(io) {
   io.on("connection", (socket) => {
     logger.info("Socket connected", { socketId: socket.id });
 
-    // General room join (role-based rooms: "drivers", "providers", etc.)
+    // General room join (role-based rooms: "users", "providers", etc.)
     socket.on("join:room", ({ room }) => {
       if (room) {
         socket.join(room);
@@ -12,11 +14,11 @@ export function setupSocketHandlers(io) {
       }
     });
 
-    // Driver joins their personal room to receive targeted notifications
-    socket.on("driver:join", ({ driverId }) => {
-      if (driverId) {
-        socket.join(`driver:${driverId}`);
-        logger.info("Driver socket registered", { driverId });
+    // user joins their personal room to receive targeted notifications
+    socket.on("user:join", ({ userId }) => {
+      if (userId) {
+        socket.join(`user:${userId}`);
+        logger.info("user socket registered", { userId });
       }
     });
 

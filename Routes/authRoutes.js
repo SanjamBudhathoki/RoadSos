@@ -14,15 +14,9 @@ userRouter.put("/update",isUser,editUserServices)
 
 userRouter.get("/profile",isUser,getUserProfile);
 
-
 userRouter.put("/provider/updateAvailability", isProvider,updateProviderAvailability);
 
 //delete user
 userRouter.delete("/delete/:id",isUser,deleteUserServices)
-
-
-
-
-
 
 export default userRouter;

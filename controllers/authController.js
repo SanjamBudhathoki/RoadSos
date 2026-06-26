@@ -20,7 +20,7 @@ export const registerService=async (req, res) => {
     gender: Joi.string().required().valid("male", "female", "preferNotToSay"),
     firstName: Joi.string().required().trim().min(3).max(30),
     lastName: Joi.string().required().trim().min(3).max(30),
-    role: Joi.string().valid("driver", "provider","admin").trim().required().lowercase(),
+    role: Joi.string().valid("user", "provider","admin").trim().required().lowercase(),
     isAvailable: Joi.boolean(),
     phone: Joi.string().required().trim().min(10).max(10),
   });
@@ -125,7 +125,7 @@ export const editUserServices=async (req, res) => {
     lastName: Joi.string().trim().min(3).max(30),
     password: Joi.string().trim().min(4).max(20),
     address: Joi.string().trim().min(2).max(55),
-    role: Joi.string().valid("driver","provider").trim(),
+    role: Joi.string().valid("user","provider").trim(),
     phone: Joi.string().trim().min(10).max(10),
   });
   

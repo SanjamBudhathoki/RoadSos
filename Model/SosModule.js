@@ -11,10 +11,10 @@ const statusHistorySchema = new mongoose.Schema(
 
 const sosSchema = new mongoose.Schema(
   {
-    driverId: {
+    userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, 'Driver ID is required']
+      required: [true, 'user ID is required']
     },
     providerId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -105,7 +105,7 @@ estimatedArrivalTime: Number,
 
 responseTimeSeconds: Number,
 
-driverRating: {
+userRating: {
   type: Number,
   min: 1,
   max: 5
@@ -130,7 +130,7 @@ trackingActive: {
 
 
 sosSchema.index({ location: '2dsphere' });
-sosSchema.index({ driverId: 1, status: 1 });
+sosSchema.index({ userId: 1, status: 1 });
 sosSchema.index({ providerId: 1, status: 1 });
 sosSchema.index({ status: 1, createdAt: -1 });
 

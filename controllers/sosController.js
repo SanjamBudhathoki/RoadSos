@@ -5,6 +5,8 @@ import { logger } from "../utils/logger.js";
 import { User } from "../Model/userModule.js";
 import { analyzeEmergencySeverity } from "../aiService/aiServices.js";
 
+
+
 //* Create sos request
 export const createSos= async (req, res) => {
   const input = req.body;
@@ -57,7 +59,7 @@ try {
     }
     
      const sos = await SosRequest.create({
-      driverId: req.loggedInUser._id,
+      userId: req.loggedInUser._id,
       emergencyType: input.emergencyType,
       notes: input.notes || "",
       location: {
@@ -118,7 +120,7 @@ try {
 export const getMySos=async (req, res) => {
   try {
     const requests = await SosRequest.find({
-      driverId: req.loggedInUser._id,
+      userId: req.loggedInUser._id,
     })
       .populate("providerId", "firstName lastName phone")
       .sort({ createdAt: -1 });
@@ -151,7 +153,7 @@ export const getSingleSos=async (req, res) => {
     }
 
     const sos = await SosRequest.findById(req.params.id)
-      .populate("driverId", "fullName phone")
+      .populate("userId", "fullName phone")
       .populate("providerId", "fullName phone");
 
     if (!sos) {
@@ -204,12 +206,12 @@ await SosRequest.findOneAndUpdate(
       });
     }
 
-    // if (sos.status !== "PENDING") {
-    //   return res.status(400).json({
-    //     success: false,
-    //     message: "SOS already assigned"
-    //   });
-    // }
+    if (sos.status !== "PENDING") {
+      return res.status(400).json({
+        success: false,
+        message: "SOS already assigned"
+      });
+    }
 
     sos.providerId = req.loggedInUser._id;
     sos.status = "ACCEPTED";
@@ -228,9 +230,9 @@ await SosRequest.findOneAndUpdate(
     isAvailable: false
   }
 );
-        // Notify the driver's room
+        // Notify the user's room
     const io = req.app.get("io");
-    io.to(`driver:${sos.driverId}`).emit("sos:accepted", 
+    io.to(`user:${sos.userId}`).emit("sos:accepted", 
       { sosId: sos._id, providerId: sos.providerId });
 
     return res.status(200).json({
@@ -375,7 +377,7 @@ export const findNearbySos=async  (req, res) => {
           $maxDistance: 10000 // 1KM
         }
       }
-    }).populate("driverId", "firstName lastName phone");
+    }).populate("userId", "firstName lastName phone");
 
 
     return res.status(200).json({
@@ -408,7 +410,7 @@ export const deleteSos=async (req, res) => {
       });
     }
 
-    if (!sos.driverId.equals(req.loggedInUser._id)) {
+    if (!sos.userId.equals(req.loggedInUser._id)) {
       return res.status(403).json({
         success: false,
         message: "Unauthorized To Cancle This SOS Request"
@@ -424,7 +426,7 @@ export const deleteSos=async (req, res) => {
     sos.statusHistory.push({
       status: "CANCELLED",
       changedBy: req.loggedInUser._id,
-      note: "Cancelled by driver"
+      note: "Cancelled by user"
     });
 
     await sos.save();
@@ -475,7 +477,7 @@ export const getActiveMissions=async (req,res) => {
         },
       })
         .populate(
-          'driverId',
+          'userId',
           'name phone'
         )
         .sort({

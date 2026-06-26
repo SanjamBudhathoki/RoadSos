@@ -38,7 +38,4 @@ sosRouter.delete("/delete/:id", isUser,deleteSos);
 
 sosRouter.get("/provider/active",isProvider,getActiveMissions)
 
-
-
-
 export default sosRouter;

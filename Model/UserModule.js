@@ -55,8 +55,8 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
     trim: true,
-    enum:['driver', 'provider', 'admin'],
-    default: 'driver'
+    enum:['user', 'provider', 'admin'],
+    default: 'user'
   },
   isAvailable: {
      type: Boolean,
