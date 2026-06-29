@@ -1,11 +1,13 @@
 RoadSos Final -SERVER
 │   aiService
-│   └── aiServices.js
+│   ├── aiServices.js
+│   └── nearByServices.js
 │   config
 │   └── dbConnect.js
 │   controllers
 │   ├── aiController.js
 │   ├── authController.js
+│   ├── nearByController.js
 │   └── sosController.js
 │   Middleware
 │   └── authMiddleWare.js
@@ -15,6 +17,7 @@ RoadSos Final -SERVER
 │   Routes
 │   ├── aiRoutes.js
 │   ├── authRoutes.js
+│   ├── nearByRoutes.js
 │   └── sosRoutes.js
 │   sockets
 │   └── socketHander.js
@@ -24,6 +27,7 @@ RoadSos Final -SERVER
 │   .env
 │   .gitignore
 │   app.js
+│   architecture.txt
 │   package-lock.json
 │   package.json
 │   README.md
