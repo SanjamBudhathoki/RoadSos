@@ -5,7 +5,7 @@ import {
   getNearbyAmbulance,
   getNearbyRescue,
   getNearbyAll,
-} from "../controllers/nearbyController.js";
+} from "../controllers/nearByController.js";
 
 // NOTE: intentionally public (no isUser) — in a real road accident,
 // someone shouldn't need to be logged in to find the nearest hospital.

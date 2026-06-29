@@ -8,57 +8,34 @@ import { analyzeEmergencySeverity } from "../aiService/aiServices.js";
 
 
 //* Create sos request
-export const createSos= async (req, res) => {
+export const createSos = async (req, res) => {
   const input = req.body;
 
-// Extract image data from request
+  // Extract image data from request
   const { imageUrl, imagePublicId, aiAnalysisResult } = input;
 
-let aiResult = null;
+  // If the frontend already ran AI analysis (e.g. image-analysis flow), use it.
+  // Otherwise use a safe, instant default — NEVER block the response on a live AI call.
+  const aiResult = aiAnalysisResult || null;
+  const needsBackgroundAnalysis = !aiResult;
 
-try {
-    // If AI analysis was already done on frontend, use it
-    if (aiAnalysisResult) {
-      aiResult = aiAnalysisResult;
-    } else {
-      // Otherwise analyze now
-      aiResult = await analyzeEmergencySeverity({
-        emergencyType: input.emergencyType,
-        description: input.notes || "",
-      });
-    }
-  } catch (error) {
-    console.error('AI analysis error:', error);
-  }
+  const createSOSSchema = Joi.object({
+    emergencyType: Joi.string()
+      .valid("MEDICAL", "POLICE", "TOWING", "GENERAL")
+      .required(),
 
-  
-  const createSOSSchema=Joi.object({
-  emergencyType: Joi.string()
-    .valid("MEDICAL", "POLICE", "TOWING", "GENERAL")
-    .required(),
+    coordinates: Joi.array().items(Joi.number()).length(2).required(),
 
-  coordinates: Joi.array()
-    .items(Joi.number())
-    .length(2)
-    .required(),
-
-  notes: Joi.string().max(500).allow(""),
-   imageUrl: Joi.string().uri().allow("", null),
+    notes: Joi.string().max(500).allow(""),
+    imageUrl: Joi.string().uri().allow("", null),
     imagePublicId: Joi.string().allow("", null),
     aiAnalysisResult: Joi.object().allow(null),
-});
+  });
 
   try {
-    const validate= await createSOSSchema.validateAsync(input);
+    await createSOSSchema.validateAsync(input);
 
-    if (validate.error) {
-      return res.status(400).json({
-        success: false,
-        message: error.details[0].message
-      });
-    }
-    
-     const sos = await SosRequest.create({
+    const sos = await SosRequest.create({
       userId: req.loggedInUser._id,
       emergencyType: input.emergencyType,
       notes: input.notes || "",
@@ -71,13 +48,14 @@ try {
       recommendedServices: aiResult?.recommendedServices || [],
       aiAnalysis: {
         voice_text: input.notes || null,
-        image_url: imageUrl || null,           //  Save image URL
-        image_public_id: imagePublicId || null, //  Save public ID
-        detected_issue: aiResult?.reason || "No analysis available",
+        image_url: imageUrl || null,
+        image_public_id: imagePublicId || null,
+        detected_issue: aiResult?.reason || "AI analysis pending...",
         severity: aiResult?.severity || "MEDIUM",
         recommended_service: aiResult?.recommendedServices?.join(", ") || "",
-        confidence_score: aiResult?.confidence || 0.9,
+        confidence_score: aiResult?.confidence || 0.5,
         safety_instructions: aiResult?.safetyInstructions || null,
+        analysisPending: needsBackgroundAnalysis,
       },
       statusHistory: [
         {
@@ -88,66 +66,99 @@ try {
       ],
     });
 
+    const io = req.app.get("io");
 
- await sos.save();
+    // 🤖 AUTO-DISPATCH: find nearest available provider (fast indexed geo query, fine to await)
+    const providers = await findNearestProviders(input.coordinates, 10000);
+    let autoDispatched = false;
 
-const io = req.app.get("io");
+    if (providers.length > 0) {
+      const nearestProvider = providers[0]; // closest one
 
-// 🤖 AUTO-DISPATCH: find nearest available provider
-const providers = await findNearestProviders(input.coordinates, 10000);
+      sos.providerId = nearestProvider._id;
+      sos.status = "ACCEPTED";
+      sos.acceptedAt = new Date();
+      sos.statusHistory.push({
+        status: "ACCEPTED",
+        changedBy: nearestProvider._id,
+        note: "Auto-dispatched by AI",
+      });
+      await sos.save();
 
-if (providers.length > 0) {
-  const nearestProvider = providers[0]; // closest one
+      await User.findByIdAndUpdate(nearestProvider._id, { isAvailable: false });
 
-  // Auto-assign
-  sos.providerId = nearestProvider._id;
-  sos.status = "ACCEPTED";
-  sos.acceptedAt = new Date();
-  sos.statusHistory.push({
-    status: "ACCEPTED",
-    changedBy: nearestProvider._id,
-    note: "Auto-dispatched by AI",
-  });
-  await sos.save();
+      io.to(`provider:${nearestProvider._id}`).emit("sos:auto-dispatched", {
+        sosId: sos._id,
+        sos,
+        message: "You have been auto-dispatched to an emergency",
+      });
 
-  // Mark provider as unavailable
-  await User.findByIdAndUpdate(nearestProvider._id, { isAvailable: false });
+      io.to(`user:${sos.userId}`).emit("sos:accepted", {
+        sosId: sos._id,
+        providerId: nearestProvider._id,
+        autoDispatched: true,
+      });
 
-  // Notify the assigned provider specifically
-  io.to(`provider:${nearestProvider._id}`).emit("sos:auto-dispatched", {
-    sosId: sos._id,
-    sos,
-    message: "You have been auto-dispatched to an emergency",
-  });
+      autoDispatched = true;
+      logger.info("Auto-dispatched SOS", {
+        sosId: sos._id,
+        providerId: nearestProvider._id,
+      });
+    } else {
+      io.emit("sos:new", sos);
+      logger.info("No nearby provider — broadcasting for manual accept", {
+        sosId: sos._id,
+      });
+    }
 
-  // Notify the user
-  io.to(`user:${sos.userId}`).emit("sos:accepted", {
-    sosId: sos._id,
-    providerId: nearestProvider._id,
-    autoDispatched: true,
-  });
+    // ✅ RESPOND IMMEDIATELY. Everything below this line happens in the
+    // background AFTER the client already has its answer — it can no
+    // longer cause a timeout or a duplicate-trigger risk.
+    res.status(201).json({
+      success: true,
+      message: autoDispatched
+        ? "SOS created and auto-dispatched to nearest provider"
+        : "SOS created — waiting for provider",
+      data: sos,
+      autoDispatched,
+    });
 
-  logger.info("Auto-dispatched SOS", {
-    sosId: sos._id,
-    providerId: nearestProvider._id,
-  });
+    // 🤖 Run the slow Gemini call in the background only if the frontend
+    // hadn't already supplied a result. Update the doc + notify the user
+    // over the socket once it resolves — never blocks the HTTP response.
+    if (needsBackgroundAnalysis) {
+      analyzeEmergencySeverity({
+        emergencyType: input.emergencyType,
+        description: input.notes || "",
+      })
+        .then(async (result) => {
+          sos.severity = result.severity;
+          sos.priorityScore = result.priorityScore;
+          sos.recommendedServices = result.recommendedServices || sos.recommendedServices;
+          sos.aiAnalysis.detected_issue = result.reason;
+          sos.aiAnalysis.severity = result.severity;
+          sos.aiAnalysis.recommended_service = (result.recommendedServices || []).join(", ");
+          sos.aiAnalysis.confidence_score = result.confidence || 0.9;
+          sos.aiAnalysis.safety_instructions = result.safetyInstructions;
+          sos.aiAnalysis.analysisPending = false;
+          await sos.save();
 
-} else {
-  // No provider nearby — broadcast to all for manual pickup
-  io.emit("sos:new", sos);
-  logger.info("No nearby provider — broadcasting for manual accept", {
-    sosId: sos._id,
-  });
-}
+          io.to(`user:${sos.userId}`).emit("sos:analysis-ready", {
+            sosId: sos._id,
+            severity: result.severity,
+            priorityScore: result.priorityScore,
+            reason: result.reason,
+            safetyInstructions: result.safetyInstructions,
+            recommendedServices: result.recommendedServices,
+          });
 
-return res.status(201).json({
-  success: true,
-  message: providers.length > 0
-    ? "SOS created and auto-dispatched to nearest provider"
-    : "SOS created — waiting for provider",
-  data: sos,
-  autoDispatched: providers.length > 0,
-});
+          logger.info("Background AI analysis complete", { sosId: sos._id });
+        })
+        .catch((error) => {
+          console.error("Background AI analysis error:", error.message);
+          logger.error("Background AI analysis failed", { sosId: sos._id, error: error.message });
+        });
+    }
   } catch (error) {
     console.error(error);
     logger.error("createSos error", { error: error.message });
@@ -157,6 +168,8 @@ return res.status(201).json({
     });
   }
 };
+
+
 
 //* get my request 
 export const getMySos=async (req, res) => {
@@ -222,73 +235,61 @@ export const getSingleSos=async (req, res) => {
 
 
 //* Accept SOS (Provider)
-export const acceptSos=async (req, res) => {
+export const acceptSos = async (req, res) => {
   try {
+    // Atomic: only matches if still PENDING, so this single query both
+    // claims the SOS and prevents two providers racing to accept it.
+    const sos = await SosRequest.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        status: "PENDING",
+      },
+      {
+        providerId: req.loggedInUser._id,
+        status: "ACCEPTED",
+        acceptedAt: new Date(),
+        $push: {
+          statusHistory: {
+            status: "ACCEPTED",
+            changedBy: req.loggedInUser._id,
+            note: "Provider accepted request",
+          },
+        },
+      },
+      { new: true }
+    );
 
-    const sos =
-await SosRequest.findOneAndUpdate(
-{
-  _id: req.params.id,
-  status: "PENDING"
-},
-{
-  providerId: req.loggedInUser._id,
-  status: "ACCEPTED",
-  acceptedAt: new Date()
-},
-{
-  new: true
-}
-);
-
+    // If no document matched, it either doesn't exist or someone else
+    // already accepted it first (status was no longer PENDING).
     if (!sos) {
       return res.status(404).json({
         success: false,
-        message: "SOS not found"
+        message: "SOS request no longer available.",
       });
     }
 
-    if (sos.status !== "PENDING") {
-      return res.status(400).json({
-        success: false,
-        message: "SOS already assigned"
-      });
-    }
-
-    sos.providerId = req.loggedInUser._id;
-    sos.status = "ACCEPTED";
-
-    sos.statusHistory.push({
-      status: "ACCEPTED",
-      changedBy: req.loggedInUser._id,
-      note: "Provider accepted request"
+    await User.findByIdAndUpdate(req.loggedInUser._id, {
+      isAvailable: false,
     });
 
-    await sos.save();
-
-    await User.findByIdAndUpdate(
-  req.loggedInUser._id,
-  {
-    isAvailable: false
-  }
-);
-        // Notify the user's room
+    // Notify the user's room
     const io = req.app.get("io");
-    io.to(`user:${sos.userId}`).emit("sos:accepted", 
-      { sosId: sos._id, providerId: sos.providerId });
+    io.to(`user:${sos.userId}`).emit("sos:accepted", {
+      sosId: sos._id,
+      providerId: sos.providerId,
+    });
 
     return res.status(200).json({
       success: true,
       message: "SOS accepted successfully",
-      data: sos
+      data: sos,
     });
-
   } catch (error) {
     logger.error("acceptSos error", { error: error.message });
 
     return res.status(500).json({
       success: false,
-      message: "Failed to accept SOS"
+      message: "Failed to accept SOS",
     });
   }
 };
