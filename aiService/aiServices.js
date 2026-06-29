@@ -393,3 +393,42 @@ Return a valid JSON object with severity, priority score, recommended services, 
     return getImageFallback();
   }
 };
+
+// --- ROADSOS CHAT ASSISTANT ---
+
+const ROADSOS_SYSTEM_PROMPT = `You are the RoadSOS Assistant, a calm and concise AI helper built into a road emergency response app.
+
+Your job:
+- Help users with road safety questions, what to do during or after a road accident, and how to use the RoadSOS app (the SOS button, nearby hospitals/police/ambulance/vehicle rescue lookup, saved emergency contacts).
+- If the user describes an ACTIVE, ongoing emergency, your first sentence must tell them to tap the SOS button in the app or call their local emergency number immediately — before anything else.
+- Never attempt to diagnose a medical condition. Only give general, widely-known first-aid guidance (e.g. "keep them still and warm", "apply firm pressure to a bleeding wound") and always note this does not replace professional medical care.
+- Keep replies short: 2-4 sentences, plain language, no markdown headers or bullet lists.
+- If the question has nothing to do with road safety, emergencies, or the app, answer briefly and steer the conversation back to how RoadSOS can help.`;
+
+export const chatWithAssistant = async (message, history = []) => {
+  const contents = [
+    ...history.slice(-8).map((turn) => ({
+      role: turn.role === "assistant" ? "model" : "user",
+      parts: [{ text: String(turn.content || "") }],
+    })),
+    { role: "user", parts: [{ text: message }] },
+  ];
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents,
+      config: {
+        systemInstruction: ROADSOS_SYSTEM_PROMPT,
+        temperature: 0.4,
+        maxOutputTokens: 400,
+      },
+    });
+
+    const text = response?.candidates?.[0]?.content?.parts?.[0]?.text || response?.text || "";
+    return text.trim() || "I'm here to help — could you tell me a bit more about what's going on?";
+  } catch (error) {
+    console.error("❌ Chat assistant error:", error.message);
+    return "I'm having trouble connecting right now. If this is a real emergency, please use the SOS button immediately or call your local emergency number.";
+  }
+};

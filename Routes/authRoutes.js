@@ -1,6 +1,6 @@
 import express from "express";
 import { isProvider, isUser } from "../Middleware/authMiddleWare.js";
-import {  deleteUserServices, editUserServices, getUserProfile, loginUserServices, registerService,  updateProviderAvailability } from "../controllers/authController.js";
+import {  deleteUserServices, editUserServices, getEmergencyContacts, getUserProfile, loginUserServices, registerService,  updateEmergencyContacts,  updateProviderAvailability } from "../controllers/authController.js";
 
 const userRouter=express.Router();
 
@@ -18,5 +18,9 @@ userRouter.put("/provider/updateAvailability", isProvider,updateProviderAvailabi
 
 //delete user
 userRouter.delete("/delete/:id",isUser,deleteUserServices)
+
+userRouter.get("/emergency-contacts", isUser, getEmergencyContacts);
+
+userRouter.put("/emergency-contacts", isUser, updateEmergencyContacts);
 
 export default userRouter;

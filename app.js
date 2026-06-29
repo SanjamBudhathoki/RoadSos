@@ -6,6 +6,7 @@ import aiRouter from "./Routes/aiRoutes.js";
 import { Server } from "socket.io";
 import http from "http";
 import rateLimit from "express-rate-limit";
+import nearbyRouter from "./Routes/nearByRoutes.js";
 
 const app = express();
 
@@ -38,6 +39,7 @@ const authLimiter = rateLimit({
 app.use("/user", authLimiter, userRouter);
 app.use("/sos", sosRouter);
 app.use("/ai", aiRouter);
+app.use("/nearby",nearbyRouter);
 
 // Health check endpoint
 app.get("/", (req, res) => {

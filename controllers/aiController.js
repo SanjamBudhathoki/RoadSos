@@ -2,6 +2,7 @@ import asyncHandler from "../utils/asyncHandler.js";
 import {
   analyzeEmergencySeverity,
   analyzeImageEmergency,
+  chatWithAssistant,
   processVoiceSOS,
 } from "../aiService/aiServices.js";
 import {v2 as cloudinary} from "cloudinary"
@@ -108,4 +109,14 @@ export const analyzeImage = asyncHandler(async (req, res) => {
       message: error.message || "Failed to analyze image",
     });
   }
+});
+
+
+export const chatAssistant = asyncHandler(async (req, res) => {
+  const { message, history } = req.body;
+  if (!message || typeof message !== "string" || !message.trim()) {
+    return res.status(400).json({ success: false, message: "A non-empty message is required" });
+  }
+  const reply = await chatWithAssistant(message.trim(), Array.isArray(history) ? history : []);
+  res.status(200).json({ success: true, data: { reply } });
 });

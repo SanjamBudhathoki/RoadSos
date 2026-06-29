@@ -71,7 +71,18 @@ const userSchema = new mongoose.Schema({
     coordinates: { 
       type: [Number],
        default: [0, 0] } // [longitude, latitude]
-  }
+  },
+  emergencyContacts: {
+  type: [
+    {
+      name: { type: String, required: true, trim: true, maxlength: 50 },
+      phone: { type: String, required: true, trim: true, maxlength: 20 },
+      relationship: { type: String, trim: true, maxlength: 30, default: "" },
+    },
+  ],
+  default: [],
+},
+
 }, { timestamps: true }
 );
 

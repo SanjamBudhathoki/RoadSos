@@ -304,3 +304,51 @@ export const deleteUserServices=async (req, res) => {
   }
 
 }
+
+//* Get Emergency Contacts
+export const getEmergencyContacts = async (req, res) => {
+  try {
+    const user = await User.findById(req.loggedInUser._id).select("emergencyContacts");
+    return res.status(200).json({ success: true, data: user?.emergencyContacts || [] });
+  } catch (error) {
+    logger.error("getEmergencyContacts error", { error: error.message });
+    return res.status(500).json({ success: false, message: "Failed to fetch emergency contacts" });
+  }
+};
+
+//* Update Emergency Contacts (replaces the full saved list)
+export const updateEmergencyContacts = async (req, res) => {
+  const schema = Joi.object({
+    contacts: Joi.array()
+      .items(
+        Joi.object({
+          name: Joi.string().trim().min(2).max(50).required(),
+          phone: Joi.string().trim().min(7).max(20).required(),
+          relationship: Joi.string().trim().max(30).allow("").default(""),
+        })
+      )
+      .max(5)
+      .required(),
+  });
+
+  try {
+    const { contacts } = await schema.validateAsync(req.body);
+    const user = await User.findByIdAndUpdate(
+      req.loggedInUser._id,
+      { emergencyContacts: contacts },
+      { new: true }
+    ).select("emergencyContacts");
+
+    return res.status(200).json({
+      success: true,
+      message: "Emergency contacts updated successfully",
+      data: user.emergencyContacts,
+    });
+  } catch (error) {
+    if (error.isJoi) {
+      return res.status(400).json({ success: false, message: error.details[0].message });
+    }
+    logger.error("updateEmergencyContacts error", { error: error.message });
+    return res.status(500).json({ success: false, message: "Failed to update emergency contacts" });
+  }
+};

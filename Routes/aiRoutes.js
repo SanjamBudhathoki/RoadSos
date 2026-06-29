@@ -3,6 +3,7 @@ import express from "express";
 import {
   analyzeEmergency,
   analyzeImage,
+  chatAssistant,
   voiceSOS,
 } from "../controllers/aiController.js";
 import { isUser } from "../Middleware/authMiddleWare.js";
@@ -24,5 +25,7 @@ router.post(
   isUser,
   analyzeImage
 );
+
+router.post("/chat", isUser, chatAssistant);
 
 export default router;

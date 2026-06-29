@@ -23,7 +23,7 @@ sosRouter.get("/:id", isUser, getSingleSos);
 
 
 // Accept SOS (Provider)
-sosRouter.put("/:id/accept", isUser,acceptSos);
+sosRouter.put("/:id/accept", isProvider,acceptSos);
 
 
 // Update SOS Status
