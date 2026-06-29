@@ -91,21 +91,63 @@ try {
 
  await sos.save();
 
-// Notify providers
-    const io = req.app.get("io");
-    io.emit("sos:new", sos);
+const io = req.app.get("io");
 
-    // Notify nearby providers
-    const providers = await findNearestProviders(input.coordinates);
-    providers.forEach((provider) => {
-      io.to(`provider:${provider._id}`).emit("sos:new", sos);
-    });
+// 🤖 AUTO-DISPATCH: find nearest available provider
+const providers = await findNearestProviders(input.coordinates, 10000);
 
-    return res.status(201).json({
-      success: true,
-      message: "SOS request created successfully",
-      data: sos,
-    });
+if (providers.length > 0) {
+  const nearestProvider = providers[0]; // closest one
+
+  // Auto-assign
+  sos.providerId = nearestProvider._id;
+  sos.status = "ACCEPTED";
+  sos.acceptedAt = new Date();
+  sos.statusHistory.push({
+    status: "ACCEPTED",
+    changedBy: nearestProvider._id,
+    note: "Auto-dispatched by AI",
+  });
+  await sos.save();
+
+  // Mark provider as unavailable
+  await User.findByIdAndUpdate(nearestProvider._id, { isAvailable: false });
+
+  // Notify the assigned provider specifically
+  io.to(`provider:${nearestProvider._id}`).emit("sos:auto-dispatched", {
+    sosId: sos._id,
+    sos,
+    message: "You have been auto-dispatched to an emergency",
+  });
+
+  // Notify the user
+  io.to(`user:${sos.userId}`).emit("sos:accepted", {
+    sosId: sos._id,
+    providerId: nearestProvider._id,
+    autoDispatched: true,
+  });
+
+  logger.info("Auto-dispatched SOS", {
+    sosId: sos._id,
+    providerId: nearestProvider._id,
+  });
+
+} else {
+  // No provider nearby — broadcast to all for manual pickup
+  io.emit("sos:new", sos);
+  logger.info("No nearby provider — broadcasting for manual accept", {
+    sosId: sos._id,
+  });
+}
+
+return res.status(201).json({
+  success: true,
+  message: providers.length > 0
+    ? "SOS created and auto-dispatched to nearest provider"
+    : "SOS created — waiting for provider",
+  data: sos,
+  autoDispatched: providers.length > 0,
+});
   } catch (error) {
     console.error(error);
     logger.error("createSos error", { error: error.message });
